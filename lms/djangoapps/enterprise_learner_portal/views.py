@@ -43,12 +43,6 @@ from enterprise.models import EnterpriseCourseEnrollment, EnterpriseCustomerUser
 
 from openedx.core.lib.api.view_utils import DeveloperErrorViewMixin, LazySequence, view_auth_classes
 
-# from . import USE_RATE_LIMIT_2_FOR_COURSE_LIST_API, USE_RATE_LIMIT_10_FOR_COURSE_LIST_API
-# from .api import course_detail, list_courses
-# from .forms import CourseDetailGetForm, CourseListGetForm
-# from .serializers import CourseDetailSerializer, CourseSerializer
-
-
 User = get_user_model()
 
 
@@ -91,13 +85,11 @@ class EnterpriseLearnerEnrollmentView(DeveloperErrorViewMixin, ListAPIView):
             for enrollment in enrollments
             if enrollment['course_details']['course_id'] in ent_enrollments
         ]
-        #print(enrollments)
 
         # we need enrollment objects for get_resume_urls_for_enrollments. otherwise we could skip that sstep
         enrollment_dict = {enrollment['course_details']['course_id']: enrollment for enrollment in enrollments}
 
         overviews = CourseOverview.get_from_ids_if_exists(enrollment_dict.keys())
-        print(overviews)
         # resume_course_run_urls = get_resume_urls_for_enrollments(user, enrollment_dict.values())
 
         response = {
@@ -140,8 +132,6 @@ class EnterpriseLearnerEnrollmentView(DeveloperErrorViewMixin, ListAPIView):
             #resume_course_run_url = resume_course_run_urls[enrollment['course_details']['course_id']]
             #if resume_course_run_url:
             #    course_run_dict['resume_course_run_url'] = resume_course_run_url
-            print(course_run_dict)
-            print('\n\n\n\n\n\n\n\n')
             response['course_runs'].append(course_run_dict)
 
         serializer = CourseRunOverviewListSerializer(response)
