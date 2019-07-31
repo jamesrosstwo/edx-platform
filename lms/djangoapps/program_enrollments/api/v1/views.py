@@ -9,8 +9,11 @@ from datetime import datetime, timedelta
 from functools import wraps
 from pytz import UTC
 
+from django.conf import settings
 from django.http import Http404
 from django.core.exceptions import PermissionDenied
+from django.core.management import call_command
+from django.db import transaction
 from django.urls import reverse
 from edx_rest_framework_extensions import permissions
 from edx_rest_framework_extensions.auth.jwt.authentication import JwtAuthentication
@@ -1151,3 +1154,23 @@ class ProgramCourseEnrollmentOverviewView(DeveloperErrorViewMixin, ProgramSpecif
             else:
                 return CourseRunProgressStatuses.UPCOMING
         return None
+
+class EnrollmentDataResetView(ProgramSpecificViewMixin, APIView):
+    """
+    does things. dangerous things.
+    """
+    authentication_classes = (
+        JwtAuthentication,
+        OAuth2AuthenticationAllowInactiveUser,
+        SessionAuthenticationAllowInactiveUser,
+    )
+
+    @transaction.atomic
+    def post(self, request, program_uuid):
+        # this enpoint is already toggled in urls.py. This just blocks this function
+        # from accidentally getting called by anything else
+        if not settings.FEATURES.get('ENABLE_ENROLLMENT_RESET'):
+            raise Exception('Reset feature not enabled on this environment')
+
+        call_command('reset_enrollment_data', program_uuid, force=True)
+        return Response('done')
