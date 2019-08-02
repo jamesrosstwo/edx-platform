@@ -3,6 +3,8 @@ API Serializers
 """
 from __future__ import absolute_import
 
+from collections import namedtuple
+
 from rest_framework import serializers
 from six import text_type
 
@@ -129,6 +131,82 @@ class ProgramCourseEnrollmentListSerializer(serializers.Serializer):
 
     def get_curriculum_uuid(self, obj):
         return text_type(obj.program_enrollment.curriculum_uuid)
+
+
+class ProgramCourseGradeResult(
+        namedtuple(
+            'ProgramCourseGradeResult',
+            ['program_enrollment', 'course_grade'],
+        )
+):
+    """
+    Represents a courserun grade for a user enrolled through a program.
+
+    Can be passed to ProgramCourseGradeResultSerializer.
+    """
+    is_error = False
+
+    @property
+    def student_key(self):
+        return self.program_enrollment.external_user_key
+
+    @property
+    def passed(self):
+        return self.course_grade.passed
+
+    @property
+    def percent(self):
+        return self.course_grade.percent
+
+    @property
+    def letter_grade(self):
+        return self.course_grade.letter_grade
+
+
+class ProgramCourseGradeErrorResult(
+        namedtuple(
+            'ProgramCourseGradeErrorResult',
+            ['program_enrollment', 'exception'],
+        )
+):
+    """
+    Represents a failure to load a courserun grade for a user enrolled through
+    a program.
+
+    Can be passed to ProgramCourseGradeResultSerializer.
+    """
+    is_error = True
+
+    @property
+    def student_key(self):
+        return self.program_enrollment.external_user_key
+
+    @property
+    def error(self):
+        return (
+            text_type(self.exception) if self.exception
+            else u"Unknown error"
+        )
+
+
+class ProgramCourseGradeResultSerializer(serializers.Serializer):
+    """
+    Serializer for a user's grade in a program courserun.
+
+    Meant to be used with ProgramCourseGradeResult
+    or ProgramCourseGradeErrorResult as input.
+    Absence of fields other than `student_key` will be ignored.
+    """
+    # Required
+    student_key = serializers.CharField()
+
+    # From ProgramCourseGradeResult only
+    passed = serializers.BooleanField(required=False)
+    percent = serializers.FloatField(required=False)
+    letter_grade = serializers.CharField(required=False)
+
+    # From ProgramCourseGradeErrorResult only
+    error = serializers.CharField(required=False)
 
 
 class DueDateSerializer(serializers.Serializer):

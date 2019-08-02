@@ -76,7 +76,7 @@ class ListViewTestMixin(object):
         """ Returns the primary URL requested by the test case. """
         kwargs = {'program_uuid': program_uuid or self.program_uuid}
         if course_id:
-            kwargs['course_id'] = course_id or self.course_id
+            kwargs['course_id'] = course_id
 
         return reverse(self.view_name, kwargs=kwargs)
 
@@ -594,7 +594,7 @@ class CourseEnrollmentPostTests(BaseCourseEnrollmentTestsMixin, APITestCase):
 
 
 @ddt.ddt
-class CourseEnrollmentModificationTestBase(BaseCourseEnrollmentTestsMixin):
+class CourseEnrollmentModificationTestMixin(BaseCourseEnrollmentTestsMixin):
     """
     Base class for both the PATCH and PUT endpoints for Course Enrollment API
     Children needs to implement assert_user_not_enrolled_test_result and
@@ -657,7 +657,7 @@ class CourseEnrollmentModificationTestBase(BaseCourseEnrollmentTestsMixin):
         self.assert_program_course_enrollment('learner-4', 'active', False)
 
 
-class CourseEnrollmentPatchTests(CourseEnrollmentModificationTestBase, APITestCase):
+class CourseEnrollmentPatchTests(CourseEnrollmentModificationTestMixin, APITestCase):
     """ Tests for course enrollment PATCH """
 
     def request(self, path, data):
@@ -674,7 +674,7 @@ class CourseEnrollmentPatchTests(CourseEnrollmentModificationTestBase, APITestCa
         self.create_program_and_course_enrollments('learner-4', course_status=initial_statuses[3], user=None)
 
 
-class CourseEnrollmentPutTests(CourseEnrollmentModificationTestBase, APITestCase):
+class CourseEnrollmentPutTests(CourseEnrollmentModificationTestMixin, APITestCase):
     """ Tests for course enrollment PUT """
 
     def request(self, path, data):
@@ -1802,3 +1802,68 @@ class ProgramCourseEnrollmentOverviewViewTests(ProgramCacheTestCaseMixin, Shared
         response = self.client.get(self.get_url(self.program_uuid))
         self.assertEqual(status.HTTP_200_OK, response.status_code)
         self.assertIn('micromasters_title', response.data['course_runs'][0])
+
+
+class ProgramCourseGradeListTest(ProgramCacheTestCaseMixin, ListViewTestMixin, APITestCase):
+    """
+    Tests for GET calls to the Program Course Grades API.
+    """
+    view_name = 'programs_api:v1:program_course_grades'
+    org_key = 'testorg'
+
+    @classmethod
+    def setUpClass(cls):
+        super(ProgramCourseGradeListTest, cls).setUpClass()
+        cls.start_cache_isolation()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.end_cache_isolation()
+        super(ProgramCourseGradeListTest, cls).tearDownClass()
+
+    def setUp(self):
+        super(ProgramCourseGradeListTest, self).setUp()
+        self.program = self.setup_catalog_cache(self.program_uuid, self.org_key)
+        curriculum = next(c for c in self.program['curricula'] if c['is_active'])
+        self.course = curriculum['courses'][0]
+        self.course_run = self.course["course_runs"][0]
+        self.course_id = CourseKey.from_string(self.course_run["key"])
+        CourseOverviewFactory(id=self.course_id)
+
+    def test_204_no_grades_to_return(self):
+        self.log_in_staff()
+        url = self.get_url()
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertEqual(response.data['results'], [])
+
+    def test_401_if_unauthenticated(self):
+        url = self.get_url()
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_403_if_not_staff(self):
+        self.log_in_non_staff()
+        url = self.get_url()
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_404_not_found(self):
+        fake_program_uuid = self.program_uuid_tmpl.format(99)
+        self.log_in_staff()
+        url = self.get_url(program_uuid=fake_program_uuid)
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def get_url(self, program_uuid=None, course_id=None):
+        kwargs = {
+            'program_uuid': program_uuid or self.program_uuid,
+            'course_id': course_id or self.course_id,
+        }
+        return reverse(self.view_name, kwargs=kwargs)
+
+    def log_in_non_staff(self):
+        self.client.login(username=self.student.username, password=self.password)
+
+    def log_in_staff(self):
+        self.client.login(username=self.global_staff.username, password=self.password)
