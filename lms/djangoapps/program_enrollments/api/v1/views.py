@@ -627,9 +627,10 @@ class UserProgramReadOnlyAccessView(DeveloperErrorViewMixin, PaginatedAPIView):
         """
         program_list = []
         for course_key in self.get_course_keys_user_is_staff_for(user):
-            course_run_program = get_programs(course=course_key)
-            if course_run_program and course_run_program['type'].lower() == program_type_filter:
-                program_list.append(course_run_program)
+            course_run_programs = get_programs(course=course_key)
+            for course_run_program in course_run_programs:
+                if course_run_program and course_run_program['type'].lower() == program_type_filter:
+                    program_list.append(course_run_program)
 
         return program_list
 
