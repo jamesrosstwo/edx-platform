@@ -516,7 +516,7 @@ class UserProgramReadOnlyAccessView(DeveloperErrorViewMixin, PaginatedAPIView):
     """
     A view for checking the currently logged-in user's program read only access
     There are three major categories of users this API is differentiating. See the table below.
-    
+
     --------------------------------------------------------------------------------------------
     | User Type        | API Returns                                                           |
     --------------------------------------------------------------------------------------------
@@ -570,10 +570,12 @@ class UserProgramReadOnlyAccessView(DeveloperErrorViewMixin, PaginatedAPIView):
 
         if request_user.is_staff:
             all_programs = get_programs(request.site)
-            catalog_data_of_programs = [program 
-                for program in all_programs 
-                if program.get('type').lower() == program_type_filter]
-        
+            catalog_data_of_programs = [
+                program
+                for program in all_programs
+                if program.get('type').lower() == program_type_filter
+            ]
+
         elif self.is_course_staff(request_user):
             catalog_data_of_programs = self.get_programs_user_is_course_staff(request_user, program_type_filter)
 
@@ -586,10 +588,12 @@ class UserProgramReadOnlyAccessView(DeveloperErrorViewMixin, PaginatedAPIView):
             uuids = [enrollment.program_uuid for enrollment in program_enrollments]
 
             catalog_data_of_programs = get_programs(uuids=uuids) or []
-        
-        programs_in_which_user_has_access = [{'uuid': program['uuid'], 'slug': program['marketing_slug']}
-                                                 for program
-                                                 in catalog_data_of_programs]
+
+        programs_in_which_user_has_access = [
+            {'uuid': program['uuid'], 'slug': program['marketing_slug']}
+            for program
+            in catalog_data_of_programs
+        ]
 
         return Response(programs_in_which_user_has_access, status.HTTP_200_OK)
 

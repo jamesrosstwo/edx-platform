@@ -86,6 +86,7 @@ class ListViewTestMixin(object):
 
         return reverse(self.view_name, kwargs=kwargs)
 
+
 @ddt.ddt
 class UserProgramReadOnlyAccessViewTest(ListViewTestMixin, APITestCase):
     """
@@ -98,8 +99,8 @@ class UserProgramReadOnlyAccessViewTest(ListViewTestMixin, APITestCase):
         super(UserProgramReadOnlyAccessViewTest, cls).setUpClass()
 
         cls.many_programs_return_list = [
-            {'uuid': cls.program_uuid_tmpl.format(11), 'marketing_slug': 'garbage-program', 'type':'masters'},
-            {'uuid': cls.program_uuid_tmpl.format(22), 'marketing_slug': 'garbage-study', 'type':'micromaster'},
+            {'uuid': cls.program_uuid_tmpl.format(11), 'marketing_slug': 'garbage-program', 'type': 'masters'},
+            {'uuid': cls.program_uuid_tmpl.format(22), 'marketing_slug': 'garbage-study', 'type': 'micromaster'},
             {'uuid': cls.program_uuid_tmpl.format(33), 'marketing_slug': 'garbage-life', 'type': 'masters'},
         ]
 
@@ -120,7 +121,6 @@ class UserProgramReadOnlyAccessViewTest(ListViewTestMixin, APITestCase):
         assert len(response.data) == data_size
         mock_get_programs.assert_has_calls(call_list)
 
-
     @ddt.data(
         ('masters', 2),
         ('micromaster', 1)
@@ -137,7 +137,6 @@ class UserProgramReadOnlyAccessViewTest(ListViewTestMixin, APITestCase):
             call_list = [mock.call(response.wsgi_request.site)]
             self._assert_response_and_mock(response, mock_get_programs, call_list, data_size)
 
-
     def test_course_staff(self):
         self.client.login(
             username=self.course_staff.username,
@@ -146,7 +145,7 @@ class UserProgramReadOnlyAccessViewTest(ListViewTestMixin, APITestCase):
         with mock.patch(
             'lms.djangoapps.program_enrollments.api.v1.views.get_programs',
             autospec=True,
-            return_value=[{'uuid': 'boop', 'marketing_slug': 'garbage-program', 'type':'masters'}]
+            return_value=[{'uuid': 'boop', 'marketing_slug': 'garbage-program', 'type': 'masters'}]
         ) as mock_get_programs:
             response = self.client.get(reverse(self.view_name) + '?type=masters')
             call_list = [mock.call(course=self.course_id)]
@@ -178,8 +177,8 @@ class UserProgramReadOnlyAccessViewTest(ListViewTestMixin, APITestCase):
             'lms.djangoapps.program_enrollments.api.v1.views.get_programs',
             autospec=True,
             side_effect=[
-                [{'uuid': 'boop', 'marketing_slug': 'garbage-program', 'type':'masters'}],
-                [{'uuid': 'boop-bop', 'marketing_slug': 'garbage-program-2', 'type':'masters'}]
+                [{'uuid': 'boop', 'marketing_slug': 'garbage-program', 'type': 'masters'}],
+                [{'uuid': 'boop-bop', 'marketing_slug': 'garbage-program-2', 'type': 'masters'}]
             ]
         ) as mock_get_programs:
             response = self.client.get(reverse(self.view_name) + '?type=masters')
@@ -201,8 +200,10 @@ class UserProgramReadOnlyAccessViewTest(ListViewTestMixin, APITestCase):
                 status='pending',
                 external_user_key='user-{}'.format(self.student.id),
             )
+
         self.client.login(username=self.student.username, password=self.password)
-        with mock.patch('lms.djangoapps.program_enrollments.api.v1.views.get_programs',
+        with mock.patch(
+            'lms.djangoapps.program_enrollments.api.v1.views.get_programs',
             autospec=True,
             return_value=self.many_programs_return_list
         ) as mock_get_programs:
