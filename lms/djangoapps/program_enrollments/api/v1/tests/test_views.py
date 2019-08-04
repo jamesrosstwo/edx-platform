@@ -5,6 +5,7 @@ from __future__ import absolute_import, unicode_literals
 
 from datetime import datetime, timedelta
 import json
+from pytz import UTC
 from uuid import uuid4
 
 import ddt
@@ -23,7 +24,11 @@ from bulk_email.models import BulkEmailFlag, Optout
 from course_modes.models import CourseMode
 from lms.djangoapps.certificates.tests.factories import GeneratedCertificateFactory
 from lms.djangoapps.certificates.models import CertificateStatuses
-from lms.djangoapps.courseware.tests.factories import GlobalStaffFactory
+from lms.djangoapps.courseware.tests.factories import (
+    GlobalStaffFactory,
+    InstructorFactory,
+    StaffFactory
+)
 from lms.djangoapps.program_enrollments.api.v1.constants import (
     CourseEnrollmentResponseStatuses as CourseStatuses,
     CourseRunProgressStatuses,
@@ -41,6 +46,7 @@ from openedx.core.djangoapps.catalog.tests.factories import ProgramFactory
 from openedx.core.djangoapps.content.course_overviews.models import CourseOverview
 from openedx.core.djangoapps.content.course_overviews.tests.factories import CourseOverviewFactory
 from openedx.core.djangolib.testing.utils import CacheIsolationMixin
+from student.roles import CourseStaffRole
 from student.tests.factories import CourseEnrollmentFactory, UserFactory
 from xmodule.modulestore.tests.factories import CourseFactory as ModulestoreCourseFactory, ItemFactory
 from xmodule.modulestore.tests.django_utils import SharedModuleStoreTestCase
@@ -80,19 +86,107 @@ class ListViewTestMixin(object):
 
         return reverse(self.view_name, kwargs=kwargs)
 
+@ddt.ddt
+class UserProgramReadOnlyAccessViewTest(ListViewTestMixin, APITestCase):
+    """
+    Tests for the UserProgramReadonlyAccess view class
+    """
+    view_name = 'programs_api:v1:user_program_readonly_access'
 
-class LearnerProgramEnrollmentTest(ListViewTestMixin, APITestCase):
-    """
-    Tests for the LearnerProgramEnrollment view class
-    """
-    view_name = 'programs_api:v1:learner_program_enrollments'
+    @classmethod
+    def setUpClass(cls):
+        super(UserProgramReadOnlyAccessViewTest, cls).setUpClass()
+
+        cls.many_programs_return_list = [
+            {'uuid': 'boop', 'marketing_slug': 'garbage-program', 'type':'masters'},
+            {'uuid': 'boop-boop', 'marketing_slug': 'garbage-study', 'type':'micromaster'},
+            {'uuid': 'boop-boop-boop', 'marketing_slug': 'garbage-life', 'type': 'masters'},
+        ]
+
+        cls.course_staff = InstructorFactory.create(password=cls.password, course_key=cls.course_id)
+        cls.date = datetime(2013, 1, 22, tzinfo=UTC)
+        CourseEnrollmentFactory(
+            course_id=cls.course_id,
+            user=cls.course_staff,
+            created=cls.date,
+        )
 
     def test_401_if_anonymous(self):
         response = self.client.get(reverse(self.view_name))
         assert status.HTTP_401_UNAUTHORIZED == response.status_code
 
+
+    @ddt.data(
+        ('masters', 2),
+        ('micromaster', 1)
+    )
+    @ddt.unpack
+    def test_global_staff(self, program_type, response_count):
+        self.client.login(username=self.global_staff.username, password=self.password)
+        with mock.patch(
+            'lms.djangoapps.program_enrollments.api.v1.views.get_programs',
+            autospec=True,
+            return_value=self.many_programs_return_list
+        ) as mock_get_programs:
+            response = self.client.get(reverse(self.view_name) + '?type=' + program_type)
+            assert status.HTTP_200_OK == response.status_code
+            assert len(response.data) == response_count
+            mock_get_programs.assert_called_once_with(response.wsgi_request.site)
+
+
+    def test_course_staff(self):
+        self.client.login(
+            username=self.course_staff.username,
+            password=self.password
+        )
+        with mock.patch(
+            'lms.djangoapps.program_enrollments.api.v1.views.get_programs',
+            autospec=True,
+            return_value=[{'uuid': 'boop', 'marketing_slug': 'garbage-program', 'type':'masters'}]
+        ) as mock_get_programs:
+            response = self.client.get(reverse(self.view_name) + '?type=masters')
+            assert status.HTTP_200_OK == response.status_code
+            assert len(response.data) == 1
+            mock_get_programs.assert_called_once_with(course=self.course_id)
+
+    def test_course_staff_of_multiple_courses(self):
+        other_course_key_string = 'course-v1:edX+ToyX+Other_Course'
+        other_course_key = CourseKey.from_string(other_course_key_string)
+
+        # add a course over view for other_course_key
+        CourseOverviewFactory.create(
+            id=other_course_key,
+            start=self.date,
+        )
+
+        # add a second course enrollment
+        course_enrollment = CourseEnrollmentFactory(
+            course_id=other_course_key,
+            user=self.course_staff
+        )
+
+        CourseStaffRole(other_course_key).add_users(self.course_staff)
+
+        self.client.login(
+            username=self.course_staff.username,
+            password=self.password
+        )
+        with mock.patch(
+            'lms.djangoapps.program_enrollments.api.v1.views.get_programs',
+            autospec=True,
+            side_effect=[
+                [{'uuid': 'boop', 'marketing_slug': 'garbage-program', 'type':'masters'}],
+                [{'uuid': 'boop-bop', 'marketing_slug': 'garbage-program-2', 'type':'masters'}]
+            ]
+        ) as mock_get_programs:
+            response = self.client.get(reverse(self.view_name) + '?type=masters')
+            assert status.HTTP_200_OK == response.status_code
+            assert len(response.data) == 2
+            call_list = [mock.call(course=self.course_id), mock.call(course=other_course_key)]
+            mock_get_programs.assert_has_calls(call_list)
+
     @mock.patch('lms.djangoapps.program_enrollments.api.v1.views.get_programs', autospec=True, return_value=None)
-    def test_200_if_no_programs_enrolled(self, mock_get_programs):
+    def test_learner_200_if_no_programs_enrolled(self, mock_get_programs):
         self.client.login(username=self.student.username, password=self.password)
         response = self.client.get(reverse(self.view_name))
         assert status.HTTP_200_OK == response.status_code
@@ -104,7 +198,7 @@ class LearnerProgramEnrollmentTest(ListViewTestMixin, APITestCase):
         {'uuid': 'boop-boop', 'marketing_slug': 'garbage-study'},
         {'uuid': 'boop-boop-boop', 'marketing_slug': 'garbage-life'},
     ])
-    def test_200_many_programs(self, mock_get_programs):
+    def test_learner_200_many_programs(self, mock_get_programs):
         self.client.login(username=self.student.username, password=self.password)
         response = self.client.get(reverse(self.view_name))
         assert status.HTTP_200_OK == response.status_code
