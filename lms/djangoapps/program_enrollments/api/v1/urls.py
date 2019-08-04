@@ -18,6 +18,11 @@ urlpatterns = [
     url(
         r'^programs/enrollments/$',
         UserProgramReadOnlyAccessView.as_view(),
+        name='learner_program_enrollments'
+    ),
+    url(
+        r'^programs/readonly_access/$',
+        UserProgramReadOnlyAccessView.as_view(),
         name='user_program_readonly_access'
     ),
     url(
