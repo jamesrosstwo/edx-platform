@@ -6,7 +6,7 @@ from __future__ import absolute_import, unicode_literals
 from datetime import datetime, timedelta
 import json
 from pytz import UTC
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import ddt
 import mock
@@ -98,9 +98,9 @@ class UserProgramReadOnlyAccessViewTest(ListViewTestMixin, APITestCase):
         super(UserProgramReadOnlyAccessViewTest, cls).setUpClass()
 
         cls.many_programs_return_list = [
-            {'uuid': 'boop', 'marketing_slug': 'garbage-program', 'type':'masters'},
-            {'uuid': 'boop-boop', 'marketing_slug': 'garbage-study', 'type':'micromaster'},
-            {'uuid': 'boop-boop-boop', 'marketing_slug': 'garbage-life', 'type': 'masters'},
+            {'uuid': cls.program_uuid_tmpl.format(11), 'marketing_slug': 'garbage-program', 'type':'masters'},
+            {'uuid': cls.program_uuid_tmpl.format(22), 'marketing_slug': 'garbage-study', 'type':'micromaster'},
+            {'uuid': cls.program_uuid_tmpl.format(33), 'marketing_slug': 'garbage-life', 'type': 'masters'},
         ]
 
         cls.course_staff = InstructorFactory.create(password=cls.password, course_key=cls.course_id)
@@ -115,13 +115,18 @@ class UserProgramReadOnlyAccessViewTest(ListViewTestMixin, APITestCase):
         response = self.client.get(reverse(self.view_name))
         assert status.HTTP_401_UNAUTHORIZED == response.status_code
 
+    def _assert_response_and_mock(self, response, mock_get_programs, call_list, data_size):
+        assert status.HTTP_200_OK == response.status_code
+        assert len(response.data) == data_size
+        mock_get_programs.assert_has_calls(call_list)
+
 
     @ddt.data(
         ('masters', 2),
         ('micromaster', 1)
     )
     @ddt.unpack
-    def test_global_staff(self, program_type, response_count):
+    def test_global_staff(self, program_type, data_size):
         self.client.login(username=self.global_staff.username, password=self.password)
         with mock.patch(
             'lms.djangoapps.program_enrollments.api.v1.views.get_programs',
@@ -129,9 +134,8 @@ class UserProgramReadOnlyAccessViewTest(ListViewTestMixin, APITestCase):
             return_value=self.many_programs_return_list
         ) as mock_get_programs:
             response = self.client.get(reverse(self.view_name) + '?type=' + program_type)
-            assert status.HTTP_200_OK == response.status_code
-            assert len(response.data) == response_count
-            mock_get_programs.assert_called_once_with(response.wsgi_request.site)
+            call_list = [mock.call(response.wsgi_request.site)]
+            self._assert_response_and_mock(response, mock_get_programs, call_list, data_size)
 
 
     def test_course_staff(self):
@@ -145,9 +149,8 @@ class UserProgramReadOnlyAccessViewTest(ListViewTestMixin, APITestCase):
             return_value=[{'uuid': 'boop', 'marketing_slug': 'garbage-program', 'type':'masters'}]
         ) as mock_get_programs:
             response = self.client.get(reverse(self.view_name) + '?type=masters')
-            assert status.HTTP_200_OK == response.status_code
-            assert len(response.data) == 1
-            mock_get_programs.assert_called_once_with(course=self.course_id)
+            call_list = [mock.call(course=self.course_id)]
+            self._assert_response_and_mock(response, mock_get_programs, call_list, 1)
 
     def test_course_staff_of_multiple_courses(self):
         other_course_key_string = 'course-v1:edX+ToyX+Other_Course'
@@ -180,30 +183,33 @@ class UserProgramReadOnlyAccessViewTest(ListViewTestMixin, APITestCase):
             ]
         ) as mock_get_programs:
             response = self.client.get(reverse(self.view_name) + '?type=masters')
-            assert status.HTTP_200_OK == response.status_code
-            assert len(response.data) == 2
             call_list = [mock.call(course=self.course_id), mock.call(course=other_course_key)]
-            mock_get_programs.assert_has_calls(call_list)
+            self._assert_response_and_mock(response, mock_get_programs, call_list, 2)
 
     @mock.patch('lms.djangoapps.program_enrollments.api.v1.views.get_programs', autospec=True, return_value=None)
     def test_learner_200_if_no_programs_enrolled(self, mock_get_programs):
         self.client.login(username=self.student.username, password=self.password)
         response = self.client.get(reverse(self.view_name))
-        assert status.HTTP_200_OK == response.status_code
-        assert response.data == []
-        assert mock_get_programs.call_count == 1
+        self._assert_response_and_mock(response, mock_get_programs, [], 0)
 
-    @mock.patch('lms.djangoapps.program_enrollments.api.v1.views.get_programs', autospec=True, return_value=[
-        {'uuid': 'boop', 'marketing_slug': 'garbage-program'},
-        {'uuid': 'boop-boop', 'marketing_slug': 'garbage-study'},
-        {'uuid': 'boop-boop-boop', 'marketing_slug': 'garbage-life'},
-    ])
-    def test_learner_200_many_programs(self, mock_get_programs):
+    def test_learner_200_many_programs(self):
+        for program in self.many_programs_return_list:
+            ProgramEnrollmentFactory.create(
+                program_uuid=program['uuid'],
+                curriculum_uuid=self.curriculum_uuid,
+                user=self.student,
+                status='pending',
+                external_user_key='user-{}'.format(self.student.id),
+            )
         self.client.login(username=self.student.username, password=self.password)
-        response = self.client.get(reverse(self.view_name))
-        assert status.HTTP_200_OK == response.status_code
-        assert len(response.data) == 3
-        assert mock_get_programs.call_count == 1
+        with mock.patch('lms.djangoapps.program_enrollments.api.v1.views.get_programs',
+            autospec=True,
+            return_value=self.many_programs_return_list
+        ) as mock_get_programs:
+            response = self.client.get(reverse(self.view_name))
+            assert status.HTTP_200_OK == response.status_code
+            call_list = [mock.call(uuids=[UUID(item['uuid']) for item in self.many_programs_return_list])]
+            self._assert_response_and_mock(response, mock_get_programs, call_list, 3)
 
 
 class ProgramEnrollmentListTest(ListViewTestMixin, APITestCase):
