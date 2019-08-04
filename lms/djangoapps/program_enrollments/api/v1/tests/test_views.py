@@ -3,9 +3,8 @@ Unit tests for ProgramEnrollment views.
 """
 from __future__ import absolute_import, unicode_literals
 
-from datetime import datetime, timedelta
 import json
-from pytz import UTC
+from datetime import datetime, timedelta
 from uuid import UUID, uuid4
 
 import ddt
@@ -15,6 +14,7 @@ from django.core.cache import cache
 from django.urls import reverse
 from freezegun import freeze_time
 from opaque_keys.edx.keys import CourseKey
+from pytz import UTC
 from rest_framework import status
 from rest_framework.test import APITestCase
 from six import text_type
@@ -22,22 +22,15 @@ from six.moves import range, zip
 
 from bulk_email.models import BulkEmailFlag, Optout
 from course_modes.models import CourseMode
-from lms.djangoapps.certificates.tests.factories import GeneratedCertificateFactory
 from lms.djangoapps.certificates.models import CertificateStatuses
-from lms.djangoapps.courseware.tests.factories import (
-    GlobalStaffFactory,
-    InstructorFactory,
-    StaffFactory
-)
-from lms.djangoapps.program_enrollments.api.v1.constants import (
-    CourseEnrollmentResponseStatuses as CourseStatuses,
-    CourseRunProgressStatuses,
-    MAX_ENROLLMENT_RECORDS,
-    ProgramEnrollmentResponseStatuses as ProgramStatuses,
-    REQUEST_STUDENT_KEY,
-)
+from lms.djangoapps.certificates.tests.factories import GeneratedCertificateFactory
+from lms.djangoapps.courseware.tests.factories import GlobalStaffFactory, InstructorFactory
+from lms.djangoapps.program_enrollments.api.v1.constants import MAX_ENROLLMENT_RECORDS, REQUEST_STUDENT_KEY
+from lms.djangoapps.program_enrollments.api.v1.constants import CourseEnrollmentResponseStatuses as CourseStatuses
+from lms.djangoapps.program_enrollments.api.v1.constants import CourseRunProgressStatuses
+from lms.djangoapps.program_enrollments.api.v1.constants import ProgramEnrollmentResponseStatuses as ProgramStatuses
+from lms.djangoapps.program_enrollments.models import ProgramCourseEnrollment, ProgramEnrollment
 from lms.djangoapps.program_enrollments.tests.factories import ProgramCourseEnrollmentFactory, ProgramEnrollmentFactory
-from lms.djangoapps.program_enrollments.models import ProgramEnrollment, ProgramCourseEnrollment
 from lms.djangoapps.program_enrollments.utils import ProviderDoesNotExistException
 from openedx.core.djangoapps.catalog.cache import PROGRAM_CACHE_KEY_TPL
 from openedx.core.djangoapps.catalog.tests.factories import CourseFactory
@@ -48,8 +41,9 @@ from openedx.core.djangoapps.content.course_overviews.tests.factories import Cou
 from openedx.core.djangolib.testing.utils import CacheIsolationMixin
 from student.roles import CourseStaffRole
 from student.tests.factories import CourseEnrollmentFactory, UserFactory
-from xmodule.modulestore.tests.factories import CourseFactory as ModulestoreCourseFactory, ItemFactory
 from xmodule.modulestore.tests.django_utils import SharedModuleStoreTestCase
+from xmodule.modulestore.tests.factories import CourseFactory as ModulestoreCourseFactory
+from xmodule.modulestore.tests.factories import ItemFactory
 
 
 class ListViewTestMixin(object):
@@ -162,7 +156,7 @@ class UserProgramReadOnlyAccessViewTest(ListViewTestMixin, APITestCase):
         )
 
         # add a second course enrollment
-        course_enrollment = CourseEnrollmentFactory(
+        CourseEnrollmentFactory(
             course_id=other_course_key,
             user=self.course_staff
         )
