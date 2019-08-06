@@ -1,6 +1,9 @@
+# -*- coding: utf-8 -*-
+"""
+CourseOverview serializers
+"""
 from rest_framework import serializers
 
-from openedx.core.djangoapps.content.course_overviews.models import CourseOverview
 from lms.djangoapps.certificates.api import get_certificate_for_user
 from lms.djangoapps.program_enrollments.api.api import (
     get_due_dates,
@@ -8,13 +11,9 @@ from lms.djangoapps.program_enrollments.api.api import (
     get_emails_enabled,
     get_course_run_status
 )
-from lms.djangoapps.program_enrollments.api.v1.constants import (
-    CourseRunProgressStatuses,
-)
-from opaque_keys.edx.locator import CourseLocator
+from openedx.core.djangoapps.content.course_overviews.models import CourseOverview
 from student.helpers import get_resume_urls_for_enrollments
 from student.models import CourseEnrollment
-
 
 
 class CourseOverviewBaseSerializer(serializers.ModelSerializer):
@@ -34,7 +33,7 @@ class CourseOverviewBaseSerializer(serializers.ModelSerializer):
 class CourseOverviewRequestUserSerializer(CourseOverviewBaseSerializer):
     """
     A Serializer that adds a number of extra calculated fields for a given
-    request user.
+    user included in the request context.
     """
 
     def to_representation(self, instance):
@@ -75,7 +74,7 @@ class CourseOverviewRequestUserSerializer(CourseOverviewBaseSerializer):
         if emails_enabled is not None:
             representation['emails_enabled'] = emails_enabled
 
-        # From here, these fields are always added
+        # Following fields always added to the representation
         representation['course_run_id'] = str(instance.id),
         representation['course_run_status'] = get_course_run_status(
             instance,
