@@ -1092,6 +1092,9 @@ class FormulaProblemRandomizeTest(ProblemsTest):
 
 @ddt.ddt
 class DragAndDropXblockWithMixinsTest(UniqueCourseTest):
+    """
+    Test Suite to verify various behaviors of DragAndDrop Xblock on the LMS.
+    """
 
     def setUp(self):
         super(DragAndDropXblockWithMixinsTest, self).setUp()
@@ -1107,7 +1110,7 @@ class DragAndDropXblockWithMixinsTest(UniqueCourseTest):
             self.course_info['run'], self.course_info['display_name'],
             start_date=datetime.now() + timedelta(days=10)
         )
-        self.browser.maximize_window()
+        self.browser.set_window_size(1024, 1024)
 
     def setup_sequential(self, metadata):
         """
