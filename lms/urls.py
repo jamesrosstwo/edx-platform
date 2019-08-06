@@ -866,7 +866,6 @@ if settings.FEATURES.get('ENABLE_THIRD_PARTY_AUTH'):
 if enterprise_enabled():
     urlpatterns += [
         url(r'', include('enterprise.urls')),
-        url(r'api/enterprise_learner_portal/', include('enterprise_learner_portal.urls')),
     ]
 
 # OAuth token exchange
