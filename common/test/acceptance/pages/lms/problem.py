@@ -7,7 +7,6 @@ from bok_choy.page_object import PageObject
 from selenium.webdriver import ActionChains
 from selenium.webdriver.common.keys import Keys
 
-
 from common.test.acceptance.pages.common.utils import click_css
 
 
